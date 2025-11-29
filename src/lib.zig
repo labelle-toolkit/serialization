@@ -7,6 +7,8 @@ const std = @import("std");
 const ecs = @import("ecs");
 
 pub const Serializer = @import("serializer.zig").Serializer;
+pub const SerializerWithTransient = @import("serializer.zig").SerializerWithTransient;
+pub const isTransient = @import("serializer.zig").isTransient;
 pub const SelectiveSerializer = @import("serializer.zig").SelectiveSerializer;
 pub const SelectiveDeserializer = @import("serializer.zig").SelectiveDeserializer;
 pub const SelectiveOptions = @import("serializer.zig").SelectiveOptions;
@@ -14,6 +16,10 @@ pub const Config = @import("config.zig").Config;
 pub const Format = @import("config.zig").Format;
 pub const SaveMetadata = @import("metadata.zig").SaveMetadata;
 pub const SerializationError = @import("errors.zig").SerializationError;
+pub const ValidationResult = @import("validation.zig").ValidationResult;
+pub const validateSave = @import("validation.zig").validateSave;
+pub const crc32 = @import("validation.zig").crc32;
+pub const addChecksum = @import("validation.zig").addChecksum;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -34,5 +40,6 @@ test {
     _ = @import("errors.zig");
     _ = @import("json_writer.zig");
     _ = @import("json_reader.zig");
+    _ = @import("validation.zig");
     _ = @import("tests/serializer_tests.zig");
 }

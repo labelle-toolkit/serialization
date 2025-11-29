@@ -359,6 +359,128 @@ pub fn serializer(comptime ComponentTypes: []const type) type {
     return Serializer(ComponentTypes);
 }
 
+/// Serializer with transient component support
+/// Transient components are excluded from serialization but can still exist in the registry
+pub fn SerializerWithTransient(comptime ComponentTypes: []const type, comptime TransientTypes: []const type) type {
+    // Filter out transient types from component types
+    const filtered = comptime blk: {
+        var count: usize = 0;
+        for (ComponentTypes) |T| {
+            var is_transient = false;
+            for (TransientTypes) |Tr| {
+                if (T == Tr) {
+                    is_transient = true;
+                    break;
+                }
+            }
+            if (!is_transient) count += 1;
+        }
+
+        var result: [count]type = undefined;
+        var idx: usize = 0;
+        for (ComponentTypes) |T| {
+            var is_transient = false;
+            for (TransientTypes) |Tr| {
+                if (T == Tr) {
+                    is_transient = true;
+                    break;
+                }
+            }
+            if (!is_transient) {
+                result[idx] = T;
+                idx += 1;
+            }
+        }
+        break :blk result;
+    };
+
+    return Serializer(&filtered);
+}
+
+/// Check if a component type has transient marker
+pub fn isTransient(comptime T: type) bool {
+    return @hasDecl(T, "serialization_transient") and T.serialization_transient;
+}
+
+test "SerializerWithTransient excludes transient components" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Velocity = struct { dx: f32, dy: f32 }; // Transient - not saved
+    const Health = struct { current: u8, max: u8 };
+
+    // Create serializer that excludes Velocity
+    const TestSerializer = SerializerWithTransient(
+        &[_]type{ Position, Velocity, Health },
+        &[_]type{Velocity},
+    );
+
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const entity = registry.create();
+    registry.add(entity, Position{ .x = 10, .y = 20 });
+    registry.add(entity, Velocity{ .dx = 1, .dy = 2 });
+    registry.add(entity, Health{ .current = 100, .max = 100 });
+
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Verify Velocity is not in the JSON
+    try std.testing.expect(std.mem.indexOf(u8, json, "Velocity") == null);
+    // But Position and Health are
+    try std.testing.expect(std.mem.indexOf(u8, json, "Position") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Health") != null);
+}
+
+test "Serializer roundtrip" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Health = struct { current: u8, max: u8 };
+    const Player = struct {}; // Tag
+
+    const TestSerializer = Serializer(&[_]type{ Position, Health, Player });
+
+    // Create and populate registry
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const player = registry.create();
+    registry.add(player, Position{ .x = 100, .y = 200 });
+    registry.add(player, Health{ .current = 80, .max = 100 });
+    registry.add(player, Player{});
+
+    const enemy = registry.create();
+    registry.add(enemy, Position{ .x = 50, .y = 75 });
+    registry.add(enemy, Health{ .current = 50, .max = 50 });
+
+    // Serialize
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Deserialize into new registry
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try ser.deserialize(&registry2, json);
+
+    // Verify data
+    var view = registry2.view(.{Position}, .{});
+    var count: usize = 0;
+    var iter = view.entityIterator();
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 2), count);
+}
+
 /// Options for selective serialization
 pub const SelectiveOptions = struct {
     /// Skip missing components during load (don't error if component not in save)
@@ -490,7 +612,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
                 if (components.object.get(name)) |comp_data| {
                     if (comp_data == .array) {
                         for (comp_data.array.items) |item| {
-                            const old_id = try getEntityId(T, item);
+                            const old_id = try getEntityIdSelective(T, item);
 
                             if (!entity_map.contains(old_id)) {
                                 const new_entity = registry.create();
@@ -504,7 +626,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
             }
         }
 
-        fn getEntityId(comptime T: type, item: std.json.Value) !u32 {
+        fn getEntityIdSelective(comptime T: type, item: std.json.Value) !u32 {
             if (@sizeOf(T) == 0) {
                 if (item != .integer) return error.InvalidSaveFormat;
                 return @intCast(item.integer);
@@ -522,7 +644,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
                 if (components.object.get(name)) |comp_data| {
                     if (comp_data == .array) {
                         for (comp_data.array.items) |item| {
-                            const old_id = try getEntityId(T, item);
+                            const old_id = try getEntityIdSelective(T, item);
                             const entity = entity_map.get(old_id) orelse return error.InvalidEntityReference;
 
                             if (@sizeOf(T) == 0) {
@@ -530,7 +652,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
                             } else {
                                 const data = item.object.get("data") orelse return error.InvalidSaveFormat;
                                 var component = try JsonReader.readValue(self.allocator, T, data);
-                                remapEntityRefs(T, &component, entity_map);
+                                remapEntityRefsSelective(T, &component, entity_map);
                                 registry.add(entity, component);
                             }
                         }
@@ -541,7 +663,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
         }
 
         /// Recursively remap entity references in a component
-        fn remapEntityRefs(comptime T: type, value: *T, entity_map: *const EntityMap) void {
+        fn remapEntityRefsSelective(comptime T: type, value: *T, entity_map: *const EntityMap) void {
             const info = @typeInfo(T);
 
             switch (info) {
@@ -560,7 +682,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
                                 }
                             }
                         } else if (@typeInfo(field.type) == .@"struct") {
-                            remapEntityRefs(field.type, &@field(value, field.name), entity_map);
+                            remapEntityRefsSelective(field.type, &@field(value, field.name), entity_map);
                         }
                     }
                 },
@@ -574,7 +696,7 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
                         }
                     } else if (@typeInfo(arr.child) == .@"struct") {
                         for (value) |*item| {
-                            remapEntityRefs(arr.child, item, entity_map);
+                            remapEntityRefsSelective(arr.child, item, entity_map);
                         }
                     }
                 },
@@ -704,49 +826,4 @@ test "SelectiveDeserializer errors on missing component without skip_missing" {
 
     // Should error because Health is not in the save
     try std.testing.expectError(error.ComponentNotInSave, loader.deserialize(&registry2, json));
-}
-
-test "Serializer roundtrip" {
-    const allocator = std.testing.allocator;
-
-    const Position = struct { x: f32, y: f32 };
-    const Health = struct { current: u8, max: u8 };
-    const Player = struct {}; // Tag
-
-    const TestSerializer = Serializer(&[_]type{ Position, Health, Player });
-
-    // Create and populate registry
-    var registry = ecs.Registry.init(allocator);
-    defer registry.deinit();
-
-    const player = registry.create();
-    registry.add(player, Position{ .x = 100, .y = 200 });
-    registry.add(player, Health{ .current = 80, .max = 100 });
-    registry.add(player, Player{});
-
-    const enemy = registry.create();
-    registry.add(enemy, Position{ .x = 50, .y = 75 });
-    registry.add(enemy, Health{ .current = 50, .max = 50 });
-
-    // Serialize
-    var ser = TestSerializer.init(allocator, .{});
-    defer ser.deinit();
-
-    const json = try ser.serialize(&registry);
-    defer allocator.free(json);
-
-    // Deserialize into new registry
-    var registry2 = ecs.Registry.init(allocator);
-    defer registry2.deinit();
-
-    try ser.deserialize(&registry2, json);
-
-    // Verify data
-    var view = registry2.view(.{Position}, .{});
-    var count: usize = 0;
-    var iter = view.entityIterator();
-    while (iter.next()) |_| {
-        count += 1;
-    }
-    try std.testing.expectEqual(@as(usize, 2), count);
 }
