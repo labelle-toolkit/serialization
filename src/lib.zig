@@ -7,6 +7,9 @@ const std = @import("std");
 const ecs = @import("ecs");
 
 pub const Serializer = @import("serializer.zig").Serializer;
+pub const SelectiveSerializer = @import("serializer.zig").SelectiveSerializer;
+pub const SelectiveDeserializer = @import("serializer.zig").SelectiveDeserializer;
+pub const SelectiveOptions = @import("serializer.zig").SelectiveOptions;
 pub const Config = @import("config.zig").Config;
 pub const Format = @import("config.zig").Format;
 pub const SaveMetadata = @import("metadata.zig").SaveMetadata;

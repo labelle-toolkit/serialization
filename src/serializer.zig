@@ -359,6 +359,353 @@ pub fn serializer(comptime ComponentTypes: []const type) type {
     return Serializer(ComponentTypes);
 }
 
+/// Options for selective serialization
+pub const SelectiveOptions = struct {
+    /// Skip missing components during load (don't error if component not in save)
+    skip_missing: bool = false,
+};
+
+/// Create a serializer that only handles a subset of component types.
+/// This is useful for different save scenarios:
+/// - Quick-save: Only save player position and health
+/// - Full save: Save everything
+/// - Checkpoint: Save progress markers only
+///
+/// Example:
+/// ```zig
+/// const AllComponents = &[_]type{ Position, Health, Inventory, QuestProgress };
+/// const QuickSaveComponents = &[_]type{ Position, Health };
+///
+/// // Full serializer
+/// const FullSerializer = Serializer(AllComponents);
+///
+/// // Quick save serializer (subset of components)
+/// const QuickSerializer = SelectiveSerializer(AllComponents, QuickSaveComponents);
+/// ```
+pub fn SelectiveSerializer(comptime AllComponents: []const type, comptime SelectedComponents: []const type) type {
+    // At compile time, verify all selected components are in AllComponents
+    comptime {
+        for (SelectedComponents) |Selected| {
+            var found = false;
+            for (AllComponents) |All| {
+                if (Selected == All) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                @compileError("SelectiveSerializer: Selected component type '" ++ @typeName(Selected) ++ "' is not in AllComponents");
+            }
+        }
+    }
+
+    return Serializer(SelectedComponents);
+}
+
+/// Create a selective deserializer that only loads specific components from a save.
+/// Unlike SelectiveSerializer, this can load partial data from a full save.
+/// Components not in SelectedComponents will be ignored during load.
+///
+/// Example:
+/// ```zig
+/// // Load only Position from a full save file
+/// const PositionOnlyLoader = SelectiveDeserializer(&[_]type{ Position });
+/// var loader = PositionOnlyLoader.init(allocator, .{});
+/// try loader.deserialize(&registry, full_save_json);
+/// ```
+pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
+    return struct {
+        const Self = @This();
+
+        allocator: std.mem.Allocator,
+        config: Config,
+        options: SelectiveOptions,
+
+        pub fn init(allocator: std.mem.Allocator, config: Config) Self {
+            return .{
+                .allocator = allocator,
+                .config = config,
+                .options = .{},
+            };
+        }
+
+        pub fn initWithOptions(allocator: std.mem.Allocator, config: Config, options: SelectiveOptions) Self {
+            return .{
+                .allocator = allocator,
+                .config = config,
+                .options = options,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            _ = self;
+        }
+
+        /// Deserialize JSON string into registry, loading only SelectedComponents
+        pub fn deserialize(self: *Self, registry: *ecs.Registry, json_str: []const u8) !void {
+            var reader = try JsonReader.init(self.allocator, json_str);
+            defer reader.deinit();
+
+            const root = reader.root();
+            if (root != .object) return error.InvalidSaveFormat;
+
+            // Check version if metadata present
+            if (JsonReader.getField(root, "meta")) |meta| {
+                try self.validateMetadata(meta);
+            }
+
+            // Build entity mapping: old ID -> new Entity
+            var entity_map = EntityMap.init(self.allocator);
+            defer entity_map.deinit();
+
+            const components = JsonReader.getField(root, "components") orelse return error.InvalidSaveFormat;
+            if (components != .object) return error.InvalidSaveFormat;
+
+            // First pass: create entities for selected components
+            try self.collectEntities(components, registry, &entity_map);
+
+            // Second pass: deserialize only selected components
+            try self.deserializeComponents(components, registry, &entity_map);
+        }
+
+        fn validateMetadata(self: *Self, meta: std.json.Value) !void {
+            if (meta != .object) return error.InvalidSaveFormat;
+
+            if (JsonReader.getField(meta, "version")) |version_val| {
+                if (version_val != .integer) return error.InvalidSaveFormat;
+                const version: u32 = @intCast(version_val.integer);
+
+                if (version > self.config.version) {
+                    return error.SaveFromNewerVersion;
+                }
+                if (version < self.config.min_loadable_version) {
+                    return error.SaveTooOld;
+                }
+            }
+        }
+
+        fn collectEntities(self: *Self, components: std.json.Value, registry: *ecs.Registry, entity_map: *EntityMap) !void {
+            inline for (SelectedComponents) |T| {
+                const name = @typeName(T);
+                if (components.object.get(name)) |comp_data| {
+                    if (comp_data == .array) {
+                        for (comp_data.array.items) |item| {
+                            const old_id = try getEntityId(T, item);
+
+                            if (!entity_map.contains(old_id)) {
+                                const new_entity = registry.create();
+                                try entity_map.put(old_id, new_entity);
+                            }
+                        }
+                    }
+                } else if (!self.options.skip_missing) {
+                    return error.ComponentNotInSave;
+                }
+            }
+        }
+
+        fn getEntityId(comptime T: type, item: std.json.Value) !u32 {
+            if (@sizeOf(T) == 0) {
+                if (item != .integer) return error.InvalidSaveFormat;
+                return @intCast(item.integer);
+            } else {
+                if (item != .object) return error.InvalidSaveFormat;
+                const entt = item.object.get("entt") orelse return error.InvalidSaveFormat;
+                if (entt != .integer) return error.InvalidSaveFormat;
+                return @intCast(entt.integer);
+            }
+        }
+
+        fn deserializeComponents(self: *Self, components: std.json.Value, registry: *ecs.Registry, entity_map: *const EntityMap) !void {
+            inline for (SelectedComponents) |T| {
+                const name = @typeName(T);
+                if (components.object.get(name)) |comp_data| {
+                    if (comp_data == .array) {
+                        for (comp_data.array.items) |item| {
+                            const old_id = try getEntityId(T, item);
+                            const entity = entity_map.get(old_id) orelse return error.InvalidEntityReference;
+
+                            if (@sizeOf(T) == 0) {
+                                registry.add(entity, T{});
+                            } else {
+                                const data = item.object.get("data") orelse return error.InvalidSaveFormat;
+                                var component = try JsonReader.readValue(self.allocator, T, data);
+                                remapEntityRefs(T, &component, entity_map);
+                                registry.add(entity, component);
+                            }
+                        }
+                    }
+                }
+                // If component not found and skip_missing is true, we just skip it
+            }
+        }
+
+        /// Recursively remap entity references in a component
+        fn remapEntityRefs(comptime T: type, value: *T, entity_map: *const EntityMap) void {
+            const info = @typeInfo(T);
+
+            switch (info) {
+                .@"struct" => |s| {
+                    inline for (s.fields) |field| {
+                        if (field.type == ecs.Entity) {
+                            const old_id: u32 = @bitCast(@field(value, field.name));
+                            if (entity_map.get(old_id)) |new_entity| {
+                                @field(value, field.name) = new_entity;
+                            }
+                        } else if (field.type == ?ecs.Entity) {
+                            if (@field(value, field.name)) |entity| {
+                                const old_id: u32 = @bitCast(entity);
+                                if (entity_map.get(old_id)) |new_entity| {
+                                    @field(value, field.name) = new_entity;
+                                }
+                            }
+                        } else if (@typeInfo(field.type) == .@"struct") {
+                            remapEntityRefs(field.type, &@field(value, field.name), entity_map);
+                        }
+                    }
+                },
+                .array => |arr| {
+                    if (arr.child == ecs.Entity) {
+                        for (value) |*item| {
+                            const old_id: u32 = @bitCast(item.*);
+                            if (entity_map.get(old_id)) |new_entity| {
+                                item.* = new_entity;
+                            }
+                        }
+                    } else if (@typeInfo(arr.child) == .@"struct") {
+                        for (value) |*item| {
+                            remapEntityRefs(arr.child, item, entity_map);
+                        }
+                    }
+                },
+                else => {},
+            }
+        }
+
+        /// Load registry from file
+        pub fn load(self: *Self, registry: *ecs.Registry, path: []const u8) !void {
+            const file = try std.fs.cwd().openFile(path, .{});
+            defer file.close();
+
+            const json = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 100);
+            defer self.allocator.free(json);
+
+            try self.deserialize(registry, json);
+        }
+    };
+}
+
+test "SelectiveSerializer saves only selected components" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Health = struct { current: u8, max: u8 };
+    const Inventory = struct { slots: u8 };
+
+    // Full component list
+    const AllComponents = &[_]type{ Position, Health, Inventory };
+    // Quick save profile
+    const QuickSaveComponents = &[_]type{ Position, Health };
+
+    // Create registry with all component types
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const player = registry.create();
+    registry.add(player, Position{ .x = 100, .y = 200 });
+    registry.add(player, Health{ .current = 80, .max = 100 });
+    registry.add(player, Inventory{ .slots = 20 });
+
+    // Use selective serializer (only Position and Health)
+    const QuickSerializer = SelectiveSerializer(AllComponents, QuickSaveComponents);
+    var ser = QuickSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Verify Inventory is not in the output
+    try std.testing.expect(std.mem.indexOf(u8, json, "Inventory") == null);
+    // But Position and Health are
+    try std.testing.expect(std.mem.indexOf(u8, json, "Position") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Health") != null);
+}
+
+test "SelectiveDeserializer loads only selected components" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Health = struct { current: u8, max: u8 };
+    const Inventory = struct { slots: u8 };
+
+    // Create a full save
+    const FullSerializer = Serializer(&[_]type{ Position, Health, Inventory });
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    const player = registry1.create();
+    registry1.add(player, Position{ .x = 100, .y = 200 });
+    registry1.add(player, Health{ .current = 80, .max = 100 });
+    registry1.add(player, Inventory{ .slots = 20 });
+
+    var full_ser = FullSerializer.init(allocator, .{});
+    defer full_ser.deinit();
+
+    const full_json = try full_ser.serialize(&registry1);
+    defer allocator.free(full_json);
+
+    // Load only Position from the full save
+    const PositionOnlyLoader = SelectiveDeserializer(&[_]type{Position});
+    var loader = PositionOnlyLoader.initWithOptions(allocator, .{}, .{ .skip_missing = true });
+    defer loader.deinit();
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try loader.deserialize(&registry2, full_json);
+
+    // Verify only Position was loaded
+    var pos_view = registry2.view(.{Position}, .{});
+    var pos_count: usize = 0;
+    var pos_iter = pos_view.entityIterator();
+    while (pos_iter.next()) |_| {
+        pos_count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 1), pos_count);
+}
+
+test "SelectiveDeserializer errors on missing component without skip_missing" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Health = struct { current: u8, max: u8 };
+
+    // Create a save with only Position
+    const PositionSerializer = Serializer(&[_]type{Position});
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    const player = registry1.create();
+    registry1.add(player, Position{ .x = 100, .y = 200 });
+
+    var ser = PositionSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry1);
+    defer allocator.free(json);
+
+    // Try to load both Position and Health (Health is missing)
+    const BothLoader = SelectiveDeserializer(&[_]type{ Position, Health });
+    var loader = BothLoader.init(allocator, .{}); // skip_missing = false by default
+    defer loader.deinit();
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    // Should error because Health is not in the save
+    try std.testing.expectError(error.ComponentNotInSave, loader.deserialize(&registry2, json));
+}
+
 test "Serializer roundtrip" {
     const allocator = std.testing.allocator;
 
