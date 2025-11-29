@@ -359,6 +359,83 @@ pub fn serializer(comptime ComponentTypes: []const type) type {
     return Serializer(ComponentTypes);
 }
 
+/// Serializer with transient component support
+/// Transient components are excluded from serialization but can still exist in the registry
+pub fn SerializerWithTransient(comptime ComponentTypes: []const type, comptime TransientTypes: []const type) type {
+    // Filter out transient types from component types
+    const filtered = comptime blk: {
+        var count: usize = 0;
+        for (ComponentTypes) |T| {
+            var is_transient = false;
+            for (TransientTypes) |Tr| {
+                if (T == Tr) {
+                    is_transient = true;
+                    break;
+                }
+            }
+            if (!is_transient) count += 1;
+        }
+
+        var result: [count]type = undefined;
+        var idx: usize = 0;
+        for (ComponentTypes) |T| {
+            var is_transient = false;
+            for (TransientTypes) |Tr| {
+                if (T == Tr) {
+                    is_transient = true;
+                    break;
+                }
+            }
+            if (!is_transient) {
+                result[idx] = T;
+                idx += 1;
+            }
+        }
+        break :blk result;
+    };
+
+    return Serializer(&filtered);
+}
+
+/// Check if a component type has transient marker
+pub fn isTransient(comptime T: type) bool {
+    return @hasDecl(T, "serialization_transient") and T.serialization_transient;
+}
+
+test "SerializerWithTransient excludes transient components" {
+    const allocator = std.testing.allocator;
+
+    const Position = struct { x: f32, y: f32 };
+    const Velocity = struct { dx: f32, dy: f32 }; // Transient - not saved
+    const Health = struct { current: u8, max: u8 };
+
+    // Create serializer that excludes Velocity
+    const TestSerializer = SerializerWithTransient(
+        &[_]type{ Position, Velocity, Health },
+        &[_]type{Velocity},
+    );
+
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const entity = registry.create();
+    registry.add(entity, Position{ .x = 10, .y = 20 });
+    registry.add(entity, Velocity{ .dx = 1, .dy = 2 });
+    registry.add(entity, Health{ .current = 100, .max = 100 });
+
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Verify Velocity is not in the JSON
+    try std.testing.expect(std.mem.indexOf(u8, json, "Velocity") == null);
+    // But Position and Health are
+    try std.testing.expect(std.mem.indexOf(u8, json, "Position") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Health") != null);
+}
+
 test "Serializer roundtrip" {
     const allocator = std.testing.allocator;
 

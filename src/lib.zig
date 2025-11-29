@@ -7,6 +7,8 @@ const std = @import("std");
 const ecs = @import("ecs");
 
 pub const Serializer = @import("serializer.zig").Serializer;
+pub const SerializerWithTransient = @import("serializer.zig").SerializerWithTransient;
+pub const isTransient = @import("serializer.zig").isTransient;
 pub const Config = @import("config.zig").Config;
 pub const Format = @import("config.zig").Format;
 pub const SaveMetadata = @import("metadata.zig").SaveMetadata;
