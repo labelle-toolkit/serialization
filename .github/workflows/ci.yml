@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Build library
+        run: zig build
+
+      - name: Run tests
+        id: tests
+        shell: bash
+        run: |
+          echo "::group::🧪 Running tests"
+          set +e
+          zig build test 2>&1 | tee test_output.txt
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          echo "::endgroup::"
+
+          # Parse test results for summary
+          PASSED=$(grep -oE '[0-9]+ passed' test_output.txt | grep -oE '^[0-9]+' || echo "0")
+          FAILED=$(grep -oE '[0-9]+ failed' test_output.txt | grep -oE '^[0-9]+' || echo "0")
+
+          # Export for badge
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          if [ "$TEST_EXIT_CODE" -eq 0 ]; then
+            echo "status=passing" >> $GITHUB_OUTPUT
+          else
+            echo "status=failing" >> $GITHUB_OUTPUT
+          fi
+
+          # Create a summary in the GitHub Actions UI
+          echo "## 🧪 Test Results (${{ matrix.os }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$TEST_EXIT_CODE" -eq 0 ]; then
+            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests failed: $PASSED passed, $FAILED failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Test Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+          exit $TEST_EXIT_CODE
+
+      - name: Run example
+        run: zig build run-example
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Check formatting
+        run: |
+          zig fmt --check src/ examples/
+          if [ $? -ne 0 ]; then
+            echo "::error::Code is not formatted. Run 'zig fmt src/ examples/' to fix."
+            exit 1
+          fi
