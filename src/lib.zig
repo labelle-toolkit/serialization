@@ -69,4 +69,5 @@ test {
     _ = @import("hooks.zig");
     _ = @import("component_registry.zig");
     _ = @import("tests/serializer_tests.zig");
+    _ = @import("tests/component_registry_tests.zig");
 }
