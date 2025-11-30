@@ -71,6 +71,38 @@ pub fn build(b: *std.Build) void {
     const example_step = b.step("run-example", "Run the basic example");
     example_step.dependOn(&run_example_basic.step);
 
+    // Usage examples
+    const usage_examples = [_]struct { name: []const u8, file: []const u8 }{
+        .{ .name = "usage-01-quick-save", .file = "usage/01_quick_save.zig" },
+        .{ .name = "usage-02-transient", .file = "usage/02_transient_components.zig" },
+        .{ .name = "usage-03-validation", .file = "usage/03_validation.zig" },
+    };
+
+    const usage_step = b.step("run-usage", "Run all usage examples");
+
+    inline for (usage_examples) |example| {
+        const exe = b.addExecutable(.{
+            .name = example.name,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(example.file),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "serialization", .module = lib_mod },
+                    .{ .name = "ecs", .module = ecs },
+                },
+            }),
+        });
+        b.installArtifact(exe);
+
+        const run_exe = b.addRunArtifact(exe);
+        usage_step.dependOn(&run_exe.step);
+
+        // Individual run step
+        const run_step = b.step("run-" ++ example.name, "Run " ++ example.name);
+        run_step.dependOn(&run_exe.step);
+    }
+
     // Docs
     const docs = b.addLibrary(.{
         .linkage = .static,
