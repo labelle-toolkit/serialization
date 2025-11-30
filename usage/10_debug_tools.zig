@@ -57,7 +57,7 @@ pub fn main() !void {
     std.debug.print("-----------------------\n", .{});
 
     var stats = try debug.getStats(allocator, save1);
-    defer stats.deinit(allocator);
+    defer stats.deinit();
 
     // Print stats manually (formatStats requires a writer)
     if (stats.version) |v| {

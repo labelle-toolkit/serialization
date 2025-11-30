@@ -15,7 +15,11 @@ const debug = serialization.debug;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    defer {
+        if (gpa.deinit() == .leak) {
+            std.debug.print("Memory leak detected!\n", .{});
+        }
+    }
     const allocator = gpa.allocator();
 
     const args = try std.process.argsAlloc(allocator);
@@ -96,7 +100,7 @@ fn cmdStats(allocator: std.mem.Allocator, args: []const []const u8) !void {
     defer allocator.free(json);
 
     var stats = try debug.getStats(allocator, json);
-    defer stats.deinit(allocator);
+    defer stats.deinit();
 
     // Print stats manually
     std.debug.print("Save File Statistics\n", .{});

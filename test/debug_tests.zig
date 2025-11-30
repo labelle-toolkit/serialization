@@ -46,28 +46,28 @@ const sample_save2 =
 
 test "getStats returns correct entity count" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(usize, 2), stats.entity_count); // entities 1 and 2
 }
 
 test "getStats returns correct component type count" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(usize, 3), stats.component_types); // Position, Health, Player
 }
 
 test "getStats returns correct component instance count" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(usize, 4), stats.component_instances); // 2 Position + 1 Health + 1 Player
 }
 
 test "getStats parses metadata" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(?u32, 1), stats.version);
     try testing.expectEqualStrings("TestGame", stats.game_name.?);
@@ -76,14 +76,14 @@ test "getStats parses metadata" {
 
 test "getStats reports file size" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(sample_save.len, stats.file_size);
 }
 
 test "getStats reports per-component breakdown" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(usize, 3), stats.components.len);
 
@@ -187,7 +187,7 @@ test "diffSaves with identical saves shows no differences" {
 
 test "formatStats produces readable output" {
     const stats = try debug.getStats(testing.allocator, sample_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     var output: std.ArrayListUnmanaged(u8) = .{};
     defer output.deinit(testing.allocator);
@@ -227,7 +227,7 @@ test "getStats handles missing metadata gracefully" {
     ;
 
     const stats = try debug.getStats(testing.allocator, minimal_save);
-    defer @constCast(&stats).deinit(testing.allocator);
+    defer @constCast(&stats).deinit();
 
     try testing.expectEqual(@as(?u32, null), stats.version);
     try testing.expectEqual(@as(?[]const u8, null), stats.game_name);

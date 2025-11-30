@@ -28,8 +28,7 @@ pub const SaveStats = struct {
     /// Allocator used for owned strings
     allocator: std.mem.Allocator,
 
-    pub fn deinit(self: *SaveStats, allocator: std.mem.Allocator) void {
-        _ = allocator;
+    pub fn deinit(self: *SaveStats) void {
         if (self.game_name) |name| {
             self.allocator.free(name);
         }
@@ -53,6 +52,7 @@ pub const RegistryDiff = struct {
     /// Entity IDs that exist in save1 but not save2
     removed_entities: []const u32,
     /// Entity IDs that exist in both but have different component data
+    /// Note: Currently unimplemented and always empty
     modified_entities: []const u32,
     /// Component types added in save2
     added_components: []const []const u8,
