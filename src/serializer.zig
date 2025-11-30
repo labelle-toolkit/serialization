@@ -8,6 +8,7 @@ const JsonWriter = @import("json_writer.zig").JsonWriter;
 const JsonReader = @import("json_reader.zig").JsonReader;
 const log = @import("log.zig");
 const Logger = log.Logger;
+const validation = @import("validation.zig");
 
 /// Type-erased component serializer
 const ComponentSerializer = struct {
@@ -34,7 +35,7 @@ pub fn Serializer(comptime ComponentTypes: []const type) type {
             return .{
                 .allocator = allocator,
                 .config = config,
-                .logger = Logger.init(config.log_level),
+                .logger = Logger.initWithCustomFn(config.log_level, config.log_fn),
             };
         }
 
@@ -388,7 +389,125 @@ pub fn Serializer(comptime ComponentTypes: []const type) type {
 
             return try JsonReader.readValue(self.allocator, SaveMetadata, meta);
         }
+
+        /// Validate a save file without loading it
+        pub fn validateFile(self: *Self, path: []const u8) !validation.ValidationResult {
+            const file = try std.fs.cwd().openFile(path, .{});
+            defer file.close();
+
+            const json = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 100);
+            defer self.allocator.free(json);
+
+            return validation.validateSave(self.allocator, json, self.config.version);
+        }
+
+        /// Dump registry state to a writer for debugging
+        pub fn dumpRegistry(self: *Self, registry: *ecs.Registry, writer: anytype) !void {
+            try writer.print("Registry Dump\n", .{});
+            try writer.print("=============\n", .{});
+            try writer.print("Component types: {d}\n\n", .{ComponentTypes.len});
+
+            inline for (ComponentTypes) |T| {
+                const name = @typeName(T);
+                var view = registry.view(.{T}, .{});
+                var count: usize = 0;
+                var iter = view.entityIterator();
+                while (iter.next()) |_| count += 1;
+
+                try writer.print("{s}: {d} instances\n", .{ name, count });
+
+                if (@sizeOf(T) > 0) {
+                    // Reset iterator and print data
+                    var iter2 = view.entityIterator();
+                    while (iter2.next()) |entity| {
+                        const component = registry.get(T, entity);
+                        const entity_id: u32 = @bitCast(entity);
+                        try writer.print("  Entity {d}: ", .{entity_id});
+                        try self.writeComponentDebug(T, component.*, writer);
+                        try writer.print("\n", .{});
+                    }
+                } else {
+                    // Tag component - just list entities
+                    var iter2 = view.entityIterator();
+                    try writer.print("  Entities: ", .{});
+                    var first = true;
+                    while (iter2.next()) |entity| {
+                        if (!first) try writer.print(", ", .{});
+                        first = false;
+                        const entity_id: u32 = @bitCast(entity);
+                        try writer.print("{d}", .{entity_id});
+                    }
+                    try writer.print("\n", .{});
+                }
+                try writer.print("\n", .{});
+            }
+        }
+
+        /// Dump a single entity's components to a writer
+        pub fn dumpEntity(self: *Self, registry: *ecs.Registry, entity: ecs.Entity, writer: anytype) !void {
+            const entity_id: u32 = @bitCast(entity);
+            try writer.print("Entity {d}\n", .{entity_id});
+            try writer.print("=========\n", .{});
+
+            inline for (ComponentTypes) |T| {
+                if (registry.has(T, entity)) {
+                    const name = @typeName(T);
+                    try writer.print("{s}: ", .{name});
+
+                    if (@sizeOf(T) > 0) {
+                        const component = registry.get(T, entity);
+                        try self.writeComponentDebug(T, component.*, writer);
+                    } else {
+                        try writer.print("(tag)", .{});
+                    }
+                    try writer.print("\n", .{});
+                }
+            }
+        }
+
+        fn writeComponentDebug(self: *Self, comptime T: type, value: T, writer: anytype) !void {
+            _ = self;
+            const info = @typeInfo(T);
+            switch (info) {
+                .@"struct" => |s| {
+                    try writer.print("{{ ", .{});
+                    inline for (s.fields, 0..) |field, i| {
+                        if (i > 0) try writer.print(", ", .{});
+                        try writer.print("{s}: ", .{field.name});
+                        try writeFieldDebug(field.type, @field(value, field.name), writer);
+                    }
+                    try writer.print(" }}", .{});
+                },
+                else => try writer.print("{any}", .{value}),
+            }
+        }
     };
+}
+
+fn writeFieldDebug(comptime T: type, value: T, writer: anytype) !void {
+    const info = @typeInfo(T);
+    switch (info) {
+        .int, .comptime_int => try writer.print("{d}", .{value}),
+        .float, .comptime_float => try writer.print("{d:.2}", .{value}),
+        .bool => try writer.print("{}", .{value}),
+        .@"enum" => try writer.print(".{s}", .{@tagName(value)}),
+        .optional => {
+            if (value) |v| {
+                try writeFieldDebug(@TypeOf(v), v, writer);
+            } else {
+                try writer.print("null", .{});
+            }
+        },
+        .pointer => |ptr| {
+            if (ptr.size == .slice and ptr.child == u8) {
+                try writer.print("\"{s}\"", .{value});
+            } else {
+                try writer.print("{any}", .{value});
+            }
+        },
+        .array => try writer.print("{any}", .{value}),
+        else => try writer.print("{any}", .{value}),
+    }
 }
 
 /// Create a serializer for the given component types

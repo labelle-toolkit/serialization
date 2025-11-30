@@ -14,6 +14,12 @@
 //! const serializer = Serializer(&components).init(allocator, .{
 //!     .log_level = .none,
 //! });
+//!
+//! // Or use a custom log function
+//! const serializer = Serializer(&components).init(allocator, .{
+//!     .log_level = .info,
+//!     .log_fn = myCustomLogger,
+//! });
 //! ```
 
 const std = @import("std");
@@ -49,42 +55,75 @@ pub const LogLevel = enum {
     }
 };
 
+/// Custom log function type
+/// Users can provide their own logging implementation
+pub const LogFn = *const fn (level: LogLevel, message: []const u8) void;
+
 /// Scoped logger for the serialization library
 pub const scoped = std.log.scoped(.serialization);
 
 /// Logger that respects the configured log level
 pub const Logger = struct {
     level: LogLevel,
+    custom_fn: ?LogFn,
 
     pub fn init(level: LogLevel) Logger {
-        return .{ .level = level };
+        return .{ .level = level, .custom_fn = null };
+    }
+
+    pub fn initWithCustomFn(level: LogLevel, custom_fn: ?LogFn) Logger {
+        return .{ .level = level, .custom_fn = custom_fn };
     }
 
     /// Log a debug message
     pub fn debug(self: Logger, comptime format: []const u8, args: anytype) void {
         if (self.level.shouldLog(.debug)) {
-            scoped.debug(format, args);
+            if (self.custom_fn) |custom| {
+                var buf: [1024]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, format, args) catch return;
+                custom(.debug, msg);
+            } else {
+                scoped.debug(format, args);
+            }
         }
     }
 
     /// Log an info message
     pub fn info(self: Logger, comptime format: []const u8, args: anytype) void {
         if (self.level.shouldLog(.info)) {
-            scoped.info(format, args);
+            if (self.custom_fn) |custom| {
+                var buf: [1024]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, format, args) catch return;
+                custom(.info, msg);
+            } else {
+                scoped.info(format, args);
+            }
         }
     }
 
     /// Log a warning message
     pub fn warn(self: Logger, comptime format: []const u8, args: anytype) void {
         if (self.level.shouldLog(.warn)) {
-            scoped.warn(format, args);
+            if (self.custom_fn) |custom| {
+                var buf: [1024]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, format, args) catch return;
+                custom(.warn, msg);
+            } else {
+                scoped.warn(format, args);
+            }
         }
     }
 
     /// Log an error message
     pub fn @"error"(self: Logger, comptime format: []const u8, args: anytype) void {
         if (self.level.shouldLog(.err)) {
-            scoped.err(format, args);
+            if (self.custom_fn) |custom| {
+                var buf: [1024]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, format, args) catch return;
+                custom(.err, msg);
+            } else {
+                scoped.err(format, args);
+            }
         }
     }
 };

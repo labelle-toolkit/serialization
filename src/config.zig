@@ -39,4 +39,8 @@ pub const Config = struct {
     /// Log level for serialization operations
     /// Set to .none to disable all logging
     log_level: log.LogLevel = .none,
+
+    /// Custom log function (optional)
+    /// If provided, logs will be sent to this function instead of std.log
+    log_fn: ?log.LogFn = null,
 };
