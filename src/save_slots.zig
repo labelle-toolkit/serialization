@@ -162,4 +162,3 @@ pub fn SaveSlotManager(comptime config: SaveSlotConfig) type {
         }
     };
 }
-

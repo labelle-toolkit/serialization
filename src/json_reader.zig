@@ -164,4 +164,3 @@ const InvalidEnumValue = error.InvalidEnumValue;
 const ArrayLengthMismatch = error.ArrayLengthMismatch;
 const MissingField = error.MissingField;
 const InvalidUnionTag = error.InvalidUnionTag;
-

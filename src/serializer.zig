@@ -402,7 +402,6 @@ pub fn isTransient(comptime T: type) bool {
     return @hasDecl(T, "serialization_transient") and T.serialization_transient;
 }
 
-
 /// Options for selective serialization
 pub const SelectiveOptions = struct {
     /// Skip missing components during load (don't error if component not in save)
@@ -638,4 +637,3 @@ pub fn SelectiveDeserializer(comptime SelectedComponents: []const type) type {
         }
     };
 }
-

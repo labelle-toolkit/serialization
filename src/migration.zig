@@ -288,4 +288,3 @@ pub const MigrationResult = struct {
         self.allocator.free(self.log);
     }
 };
-

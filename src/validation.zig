@@ -156,4 +156,3 @@ pub fn addChecksum(allocator: std.mem.Allocator, json_str: []const u8) ![]u8 {
     // Re-stringify with checksum
     return jsonValueToStringPretty(allocator, root);
 }
-

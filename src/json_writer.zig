@@ -254,4 +254,3 @@ pub const JsonWriter = struct {
         }
     }
 };
-

@@ -125,4 +125,3 @@ pub fn hasCompressionHeader(data: []const u8) bool {
     return std.mem.eql(u8, data[0..4], &CompressedHeader.MAGIC_COMPRESSED) or
         std.mem.eql(u8, data[0..4], &CompressedHeader.MAGIC_RAW);
 }
-
