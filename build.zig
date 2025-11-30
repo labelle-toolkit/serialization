@@ -80,6 +80,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-05-compression", .file = "usage/05_compression.zig" },
         .{ .name = "usage-06-save-slots", .file = "usage/06_save_slots.zig" },
         .{ .name = "usage-07-custom-hooks", .file = "usage/07_custom_hooks.zig" },
+        .{ .name = "usage-08-component-registry", .file = "usage/08_component_registry.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");

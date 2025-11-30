@@ -40,6 +40,9 @@ usage-06:
 usage-07:
 	zig build run-usage-07-custom-hooks
 
+usage-08:
+	zig build run-usage-08-component-registry
+
 # Run the basic example
 example:
 	zig build run-example
@@ -74,6 +77,7 @@ help:
 	@echo "  usage-05   - Run compression example"
 	@echo "  usage-06   - Run save slots example"
 	@echo "  usage-07   - Run custom hooks example"
+	@echo "  usage-08   - Run component registry example"
 	@echo "  example    - Run basic example"
 	@echo "  docs       - Generate documentation"
 	@echo "  clean      - Remove build artifacts"
