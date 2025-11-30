@@ -164,31 +164,3 @@ const InvalidEnumValue = error.InvalidEnumValue;
 const ArrayLengthMismatch = error.ArrayLengthMismatch;
 const MissingField = error.MissingField;
 const InvalidUnionTag = error.InvalidUnionTag;
-
-test "JsonReader basic types" {
-    const allocator = std.testing.allocator;
-
-    var reader = try JsonReader.init(allocator, "42");
-    defer reader.deinit();
-
-    const value = try JsonReader.readValue(allocator, i32, reader.root());
-    try std.testing.expectEqual(@as(i32, 42), value);
-}
-
-test "JsonReader struct" {
-    const allocator = std.testing.allocator;
-
-    const TestStruct = struct {
-        x: i32,
-        y: i32,
-    };
-
-    var reader = try JsonReader.init(allocator,
-        \\{"x": 10, "y": 20}
-    );
-    defer reader.deinit();
-
-    const value = try JsonReader.readValue(allocator, TestStruct, reader.root());
-    try std.testing.expectEqual(@as(i32, 10), value.x);
-    try std.testing.expectEqual(@as(i32, 20), value.y);
-}

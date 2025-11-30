@@ -2,7 +2,8 @@
 
 const std = @import("std");
 const ecs = @import("ecs");
-const Serializer = @import("../serializer.zig").Serializer;
+const serialization = @import("serialization");
+const Serializer = serialization.Serializer;
 
 // Test components
 const Position = struct {
@@ -513,3 +514,184 @@ test "serialize and deserialize many entities" {
 }
 
 const NoEntity = error.NoEntity;
+
+// Additional imports for transient/selective tests
+const SerializerWithTransient = serialization.SerializerWithTransient;
+const SelectiveSerializer = serialization.SelectiveSerializer;
+const SelectiveDeserializer = serialization.SelectiveDeserializer;
+
+// Additional test component for slots
+const InventorySlots = struct {
+    slots: u8,
+};
+
+test "SerializerWithTransient excludes transient components" {
+    const allocator = std.testing.allocator;
+
+    // Create serializer that excludes Velocity
+    const TestSerializer = SerializerWithTransient(
+        &[_]type{ Position, Velocity, Health },
+        &[_]type{Velocity},
+    );
+
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const entity = registry.create();
+    registry.add(entity, Position{ .x = 10, .y = 20 });
+    registry.add(entity, Velocity{ .dx = 1, .dy = 2 });
+    registry.add(entity, Health{ .current = 100, .max = 100 });
+
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Verify Velocity is not in the JSON
+    try std.testing.expect(std.mem.indexOf(u8, json, "Velocity") == null);
+    // But Position and Health are
+    try std.testing.expect(std.mem.indexOf(u8, json, "Position") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Health") != null);
+}
+
+test "Serializer roundtrip" {
+    const allocator = std.testing.allocator;
+
+    const TestSerializer = Serializer(&[_]type{ Position, Health, Player });
+
+    // Create and populate registry
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const player = registry.create();
+    registry.add(player, Position{ .x = 100, .y = 200 });
+    registry.add(player, Health{ .current = 80, .max = 100 });
+    registry.add(player, Player{});
+
+    const enemy = registry.create();
+    registry.add(enemy, Position{ .x = 50, .y = 75 });
+    registry.add(enemy, Health{ .current = 50, .max = 50 });
+
+    // Serialize
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Deserialize into new registry
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try ser.deserialize(&registry2, json);
+
+    // Verify data
+    var view = registry2.view(.{Position}, .{});
+    var count: usize = 0;
+    var iter = view.entityIterator();
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 2), count);
+}
+
+test "SelectiveSerializer saves only selected components" {
+    const allocator = std.testing.allocator;
+
+    // Full component list
+    const AllComponents = &[_]type{ Position, Health, InventorySlots };
+    // Quick save profile
+    const QuickSaveComponents = &[_]type{ Position, Health };
+
+    // Create registry with all component types
+    var registry = ecs.Registry.init(allocator);
+    defer registry.deinit();
+
+    const player = registry.create();
+    registry.add(player, Position{ .x = 100, .y = 200 });
+    registry.add(player, Health{ .current = 80, .max = 100 });
+    registry.add(player, InventorySlots{ .slots = 20 });
+
+    // Use selective serializer (only Position and Health)
+    const QuickSerializer = SelectiveSerializer(AllComponents, QuickSaveComponents);
+    var ser = QuickSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry);
+    defer allocator.free(json);
+
+    // Verify InventorySlots is not in the output
+    try std.testing.expect(std.mem.indexOf(u8, json, "InventorySlots") == null);
+    // But Position and Health are
+    try std.testing.expect(std.mem.indexOf(u8, json, "Position") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Health") != null);
+}
+
+test "SelectiveDeserializer loads only selected components" {
+    const allocator = std.testing.allocator;
+
+    // Create a full save
+    const FullSerializer = Serializer(&[_]type{ Position, Health, InventorySlots });
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    const player = registry1.create();
+    registry1.add(player, Position{ .x = 100, .y = 200 });
+    registry1.add(player, Health{ .current = 80, .max = 100 });
+    registry1.add(player, InventorySlots{ .slots = 20 });
+
+    var full_ser = FullSerializer.init(allocator, .{});
+    defer full_ser.deinit();
+
+    const full_json = try full_ser.serialize(&registry1);
+    defer allocator.free(full_json);
+
+    // Load only Position from the full save
+    const PositionOnlyLoader = SelectiveDeserializer(&[_]type{Position});
+    var loader = PositionOnlyLoader.initWithOptions(allocator, .{}, .{ .skip_missing = true });
+    defer loader.deinit();
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try loader.deserialize(&registry2, full_json);
+
+    // Verify only Position was loaded
+    var pos_view = registry2.view(.{Position}, .{});
+    var pos_count: usize = 0;
+    var pos_iter = pos_view.entityIterator();
+    while (pos_iter.next()) |_| {
+        pos_count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 1), pos_count);
+}
+
+test "SelectiveDeserializer errors on missing component without skip_missing" {
+    const allocator = std.testing.allocator;
+
+    // Create a save with only Position
+    const PositionSerializer = Serializer(&[_]type{Position});
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    const player = registry1.create();
+    registry1.add(player, Position{ .x = 100, .y = 200 });
+
+    var ser = PositionSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry1);
+    defer allocator.free(json);
+
+    // Try to load both Position and Health (Health is missing)
+    const BothLoader = SelectiveDeserializer(&[_]type{ Position, Health });
+    var loader = BothLoader.init(allocator, .{}); // skip_missing = false by default
+    defer loader.deinit();
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    // Should error because Health is not in the save
+    try std.testing.expectError(error.ComponentNotInSave, loader.deserialize(&registry2, json));
+}
