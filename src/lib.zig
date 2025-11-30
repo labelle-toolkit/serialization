@@ -49,6 +49,11 @@ pub const debug = @import("debug.zig");
 pub const SaveStats = debug.SaveStats;
 pub const ComponentStats = debug.ComponentStats;
 pub const RegistryDiff = debug.RegistryDiff;
+pub const BinaryWriter = @import("binary_writer.zig").BinaryWriter;
+pub const BinaryReader = @import("binary_reader.zig").BinaryReader;
+pub const BinarySerializer = @import("binary_serializer.zig").BinarySerializer;
+pub const BINARY_MAGIC = @import("binary_writer.zig").MAGIC;
+pub const BINARY_FORMAT_VERSION = @import("binary_writer.zig").FORMAT_VERSION;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -77,4 +82,7 @@ test {
     _ = @import("component_registry.zig");
     _ = @import("log.zig");
     _ = @import("debug.zig");
+    _ = @import("binary_writer.zig");
+    _ = @import("binary_reader.zig");
+    _ = @import("binary_serializer.zig");
 }

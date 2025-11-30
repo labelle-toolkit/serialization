@@ -210,6 +210,48 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(comprehensive_tests).step);
 
+    // Tests - binary writer tests (Issue #5)
+    const binary_writer_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/binary_writer_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(binary_writer_tests).step);
+
+    // Tests - binary reader tests (Issue #5)
+    const binary_reader_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/binary_reader_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(binary_reader_tests).step);
+
+    // Tests - binary serializer tests (Issue #5)
+    const binary_serializer_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/binary_serializer_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(binary_serializer_tests).step);
+
     // Example: basic save/load
     const example_basic = b.addExecutable(.{
         .name = "example-basic",
@@ -241,6 +283,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-08-component-registry", .file = "usage/08_component_registry.zig" },
         .{ .name = "usage-09-logging", .file = "usage/09_logging.zig" },
         .{ .name = "usage-10-debug-tools", .file = "usage/10_debug_tools.zig" },
+        .{ .name = "usage-11-binary-format", .file = "usage/11_binary_format.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");
