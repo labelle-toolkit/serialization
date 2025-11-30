@@ -78,6 +78,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-03-validation", .file = "usage/03_validation.zig" },
         .{ .name = "usage-04-migration", .file = "usage/04_migration.zig" },
         .{ .name = "usage-05-compression", .file = "usage/05_compression.zig" },
+        .{ .name = "usage-06-save-slots", .file = "usage/06_save_slots.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");
