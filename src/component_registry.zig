@@ -220,10 +220,8 @@ pub const ComponentRegistry = struct {
             }
 
             // Check for problematic field types
-            if (info == .@"struct") {
-                inline for (info.@"struct".fields) |field| {
-                    validateFieldType(T, field.name, field.type);
-                }
+            inline for (info.@"struct".fields) |field| {
+                validateFieldType(T, field.name, field.type);
             }
         }
     }
@@ -339,4 +337,28 @@ const TestComponentModule = struct {
 test "fromModule extracts struct types" {
     const types = ComponentRegistry.fromModule(TestComponentModule);
     try std.testing.expectEqual(@as(usize, 3), types.len);
+}
+
+test "validateSerializable passes for valid types" {
+    // These types should pass validation
+    const valid_types = &[_]type{ TestPosition, TestHealth, TestPlayer };
+
+    // This should compile without error - validates at comptime
+    comptime ComponentRegistry.validateSerializable(valid_types);
+
+    // If we get here, validation passed
+    try std.testing.expect(true);
+}
+
+test "validateSerializable handles nested structs" {
+    const NestedComponent = struct {
+        inner: struct {
+            value: u32,
+        },
+        name: []const u8,
+    };
+
+    const types = &[_]type{NestedComponent};
+    comptime ComponentRegistry.validateSerializable(types);
+    try std.testing.expect(true);
 }
