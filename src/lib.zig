@@ -35,6 +35,12 @@ pub const hasCompressionHeader = @import("compression.zig").hasCompressionHeader
 pub const SaveSlotManager = @import("save_slots.zig").SaveSlotManager;
 pub const SaveSlotConfig = @import("save_slots.zig").SaveSlotConfig;
 pub const SlotInfo = @import("save_slots.zig").SlotInfo;
+pub const hooks = @import("hooks.zig");
+pub const hasCustomSerialize = hooks.hasCustomSerialize;
+pub const hasCustomDeserialize = hooks.hasCustomDeserialize;
+pub const hasCustomSerialization = hooks.hasCustomSerialization;
+pub const serializeValue = hooks.serializeValue;
+pub const deserializeValue = hooks.deserializeValue;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -59,5 +65,6 @@ test {
     _ = @import("migration.zig");
     _ = @import("compression.zig");
     _ = @import("save_slots.zig");
+    _ = @import("hooks.zig");
     _ = @import("tests/serializer_tests.zig");
 }
