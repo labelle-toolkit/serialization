@@ -220,16 +220,6 @@ pub fn MigrationRegistry(comptime max_migrations: usize) type {
             }
         }
 
-        /// Find migration path from current version to target version
-        pub fn findMigrationPath(self: *const Self, from: u32, to: u32) ?[]const MigrationStep {
-            // Simple linear search for now - could be optimized with graph algorithms
-            _ = self;
-            _ = from;
-            _ = to;
-            // For MVP, we'll run migrations one at a time
-            return null;
-        }
-
         /// Run all necessary migrations to upgrade from current version to target
         pub fn migrate(self: *const Self, allocator: std.mem.Allocator, json_str: []const u8, target_version: u32) !MigrationResult {
             var ctx = try MigrationContext.init(allocator, json_str);
