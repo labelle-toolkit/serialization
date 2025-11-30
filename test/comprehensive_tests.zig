@@ -42,12 +42,8 @@ const FloatComponent = struct {
 };
 
 // ============================================================================
-// Test Components - Strings and Arrays
+// Test Components - Arrays
 // ============================================================================
-
-const NameComponent = struct {
-    name: []const u8,
-};
 
 const FixedArrayComponent = struct {
     values: [8]u32,
@@ -66,10 +62,6 @@ const OptionalPrimitives = struct {
     maybe_int: ?i32,
     maybe_float: ?f32,
     maybe_bool: ?bool,
-};
-
-const OptionalNested = struct {
-    maybe_pos: ?struct { x: f32, y: f32 },
 };
 
 // ============================================================================
@@ -183,11 +175,27 @@ test "serialize and deserialize bool values" {
 
     try ser.deserialize(&registry2, json);
 
+    // Verify correct number of entities
     var view = registry2.view(.{BoolComponent}, .{});
     var count: usize = 0;
     var iter = view.entityIterator();
     while (iter.next()) |_| count += 1;
     try testing.expectEqual(@as(usize, 2), count);
+
+    // Verify actual boolean values were preserved
+    var found_true_false = false;
+    var found_false_true = false;
+    var iter2 = view.entityIterator();
+    while (iter2.next()) |entity| {
+        const comp = registry2.get(BoolComponent, entity);
+        if (comp.flag == true and comp.enabled == false) {
+            found_true_false = true;
+        } else if (comp.flag == false and comp.enabled == true) {
+            found_false_true = true;
+        }
+    }
+    try testing.expect(found_true_false);
+    try testing.expect(found_false_true);
 }
 
 test "serialize and deserialize integer types" {
@@ -613,6 +621,43 @@ test "serialize and deserialize tagged union - primitive variant" {
     }
 }
 
+test "serialize and deserialize tagged union - attack variant" {
+    const allocator = testing.allocator;
+    const TestSerializer = Serializer(&[_]type{ActionComponent});
+
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    const e = registry1.create();
+    registry1.add(e, ActionComponent{
+        .current_action = .{ .attack = .{ .target_id = 42, .damage = 100 } },
+    });
+
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const json = try ser.serialize(&registry1);
+    defer allocator.free(json);
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try ser.deserialize(&registry2, json);
+
+    var view = registry2.view(.{ActionComponent}, .{});
+    var iter = view.entityIterator();
+    const loaded_e = iter.next() orelse return error.NoEntity;
+    const comp = registry2.get(ActionComponent, loaded_e);
+
+    switch (comp.current_action) {
+        .attack => |a| {
+            try testing.expectEqual(@as(u32, 42), a.target_id);
+            try testing.expectEqual(@as(i32, 100), a.damage);
+        },
+        else => return error.WrongVariant,
+    }
+}
+
 // ============================================================================
 // UNIT TESTS - Nested Structs
 // ============================================================================
@@ -651,6 +696,7 @@ test "serialize and deserialize nested struct" {
     try testing.expectApproxEqAbs(@as(f32, 200), comp.position.y, 0.001);
     try testing.expectApproxEqAbs(@as(f32, 1.57), comp.rotation, 0.001);
     try testing.expectApproxEqAbs(@as(f32, 2.0), comp.scale.x, 0.001);
+    try testing.expectApproxEqAbs(@as(f32, 2.0), comp.scale.y, 0.001);
 }
 
 test "serialize and deserialize deeply nested struct" {
@@ -752,7 +798,6 @@ test "serialize and deserialize unicode strings" {
     defer allocator.free(json);
 
     var registry2 = ecs.Registry.init(allocator);
-    defer registry2.deinit();
 
     try ser.deserialize(&registry2, json);
 
@@ -763,8 +808,11 @@ test "serialize and deserialize unicode strings" {
 
     try testing.expectEqualStrings("Hello 世界 🎮 émoji", comp.text);
 
-    // Free allocated string memory (deserialized strings are heap-allocated)
-    allocator.free(comp.text);
+    // Save pointer before registry cleanup to avoid dangling pointer in registry
+    const text_to_free = comp.text;
+    registry2.deinit();
+    // Free allocated string memory after registry cleanup
+    allocator.free(text_to_free);
 }
 
 test "serialize and deserialize empty string" {
@@ -784,7 +832,6 @@ test "serialize and deserialize empty string" {
     defer allocator.free(json);
 
     var registry2 = ecs.Registry.init(allocator);
-    defer registry2.deinit();
 
     try ser.deserialize(&registry2, json);
 
@@ -795,8 +842,11 @@ test "serialize and deserialize empty string" {
 
     try testing.expectEqualStrings("", comp.text);
 
-    // Free allocated string memory (deserialized strings are heap-allocated)
-    allocator.free(comp.text);
+    // Save pointer before registry cleanup to avoid dangling pointer in registry
+    const text_to_free = comp.text;
+    registry2.deinit();
+    // Free allocated string memory after registry cleanup
+    allocator.free(text_to_free);
 }
 
 test "serialize and deserialize registry with only tags" {
@@ -955,6 +1005,3 @@ test "deserialize rejects missing components section" {
     const result = ser.deserialize(&registry, no_components);
     try testing.expectError(error.InvalidSaveFormat, result);
 }
-
-const NoEntity = error.NoEntity;
-const WrongVariant = error.WrongVariant;
