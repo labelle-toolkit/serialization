@@ -228,9 +228,12 @@ test "serialize and deserialize integer types" {
     const comp = registry2.get(IntegerComponent, loaded_e);
 
     try testing.expectEqual(@as(i8, -128), comp.i8_val);
-    try testing.expectEqual(@as(u8, 255), comp.u8_val);
-    try testing.expectEqual(@as(u32, 4294967295), comp.u32_val);
+    try testing.expectEqual(@as(i16, -32768), comp.i16_val);
+    try testing.expectEqual(@as(i32, -2147483648), comp.i32_val);
     try testing.expectEqual(@as(i64, -9007199254740991), comp.i64_val);
+    try testing.expectEqual(@as(u8, 255), comp.u8_val);
+    try testing.expectEqual(@as(u16, 65535), comp.u16_val);
+    try testing.expectEqual(@as(u32, 4294967295), comp.u32_val);
     try testing.expectEqual(@as(u64, 9007199254740991), comp.u64_val);
 }
 
@@ -453,11 +456,30 @@ test "serialize and deserialize simple enum" {
 
     try ser.deserialize(&registry2, json);
 
+    // Verify correct number of entities
     var view = registry2.view(.{EnumComponent}, .{});
     var count: usize = 0;
     var iter = view.entityIterator();
     while (iter.next()) |_| count += 1;
     try testing.expectEqual(@as(usize, 3), count);
+
+    // Verify actual enum values were preserved
+    var found_idle = false;
+    var found_running = false;
+    var found_jumping = false;
+    var iter2 = view.entityIterator();
+    while (iter2.next()) |entity| {
+        const comp = registry2.get(EnumComponent, entity);
+        switch (comp.state) {
+            .idle => found_idle = true,
+            .running => found_running = true,
+            .jumping => found_jumping = true,
+            .walking => {},
+        }
+    }
+    try testing.expect(found_idle);
+    try testing.expect(found_running);
+    try testing.expect(found_jumping);
 }
 
 test "serialize and deserialize numbered enum" {
