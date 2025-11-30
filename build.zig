@@ -36,8 +36,8 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(lib);
 
-    // Tests
-    const tests = b.addTest(.{
+    // Tests - library tests
+    const lib_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/lib.zig"),
             .target = target,
@@ -48,9 +48,125 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    const run_tests = b.addRunArtifact(tests);
+    const run_lib_tests = b.addRunArtifact(lib_tests);
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&run_lib_tests.step);
+
+    // Tests - serializer tests
+    const serializer_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/serializer_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+
+    const run_serializer_tests = b.addRunArtifact(serializer_tests);
+    test_step.dependOn(&run_serializer_tests.step);
+
+    // Tests - component registry tests
+    const registry_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/component_registry_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+
+    const run_registry_tests = b.addRunArtifact(registry_tests);
+    test_step.dependOn(&run_registry_tests.step);
+
+    // Tests - compression tests
+    const compression_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/compression_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(compression_tests).step);
+
+    // Tests - json tests
+    const json_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/json_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(json_tests).step);
+
+    // Tests - validation tests
+    const validation_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/validation_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(validation_tests).step);
+
+    // Tests - save slots tests
+    const save_slots_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/save_slots_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(save_slots_tests).step);
+
+    // Tests - hooks tests
+    const hooks_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/hooks_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(hooks_tests).step);
+
+    // Tests - migration tests
+    const migration_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/migration_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(migration_tests).step);
 
     // Example: basic save/load
     const example_basic = b.addExecutable(.{

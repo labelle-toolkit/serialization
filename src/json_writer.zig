@@ -255,33 +255,3 @@ pub const JsonWriter = struct {
     }
 };
 
-test "JsonWriter basic types" {
-    const allocator = std.testing.allocator;
-
-    var writer = JsonWriter.init(allocator, false);
-    defer writer.deinit();
-
-    try writer.writeInt(42);
-    try std.testing.expectEqualStrings("42", writer.getWritten());
-}
-
-test "JsonWriter struct" {
-    const allocator = std.testing.allocator;
-
-    const TestStruct = struct {
-        x: i32,
-        y: i32,
-        name: []const u8,
-    };
-
-    var writer = JsonWriter.init(allocator, false);
-    defer writer.deinit();
-
-    try writer.writeValue(TestStruct{ .x = 10, .y = 20, .name = "test" });
-
-    // Compact mode has no spaces after colons
-    const expected =
-        \\{"x":10,"y":20,"name":"test"}
-    ;
-    try std.testing.expectEqualStrings(expected, writer.getWritten());
-}

@@ -1,7 +1,8 @@
 //! Tests for ComponentRegistry
 
 const std = @import("std");
-const ComponentRegistry = @import("../component_registry.zig").ComponentRegistry;
+const serialization = @import("serialization");
+const ComponentRegistry = serialization.ComponentRegistry;
 
 // Test types
 const TestPosition = struct { x: f32, y: f32 };
