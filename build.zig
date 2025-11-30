@@ -196,6 +196,20 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(debug_tests).step);
 
+    // Tests - comprehensive tests (Issue #21)
+    const comprehensive_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/comprehensive_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(comprehensive_tests).step);
+
     // Example: basic save/load
     const example_basic = b.addExecutable(.{
         .name = "example-basic",
