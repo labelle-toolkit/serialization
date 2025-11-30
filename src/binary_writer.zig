@@ -4,7 +4,7 @@
 //! Format specification:
 //! - All integers are little-endian
 //! - Strings are length-prefixed (u32 length + bytes)
-//! - Arrays are length-prefixed (u32 length + elements)
+//! - Slices are length-prefixed (u32 length + elements); fixed-size arrays are written directly
 
 const std = @import("std");
 const ecs = @import("ecs");
@@ -161,14 +161,30 @@ pub const BinaryWriter = struct {
                         try self.writeU64(value);
                     }
                 } else if (int_info.bits <= 8) {
-                    // Small integers (enums etc) - write as u8
-                    try self.writeU8(@intCast(value));
+                    // Small integers (enums etc) - preserve signedness
+                    if (int_info.signedness == .signed) {
+                        try self.writeI8(@intCast(value));
+                    } else {
+                        try self.writeU8(@intCast(value));
+                    }
                 } else if (int_info.bits <= 16) {
-                    try self.writeU16(@intCast(value));
+                    if (int_info.signedness == .signed) {
+                        try self.writeI16(@intCast(value));
+                    } else {
+                        try self.writeU16(@intCast(value));
+                    }
                 } else if (int_info.bits <= 32) {
-                    try self.writeU32(@intCast(value));
+                    if (int_info.signedness == .signed) {
+                        try self.writeI32(@intCast(value));
+                    } else {
+                        try self.writeU32(@intCast(value));
+                    }
                 } else {
-                    try self.writeU64(@intCast(value));
+                    if (int_info.signedness == .signed) {
+                        try self.writeI64(@intCast(value));
+                    } else {
+                        try self.writeU64(@intCast(value));
+                    }
                 }
             },
             .comptime_int => {

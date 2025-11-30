@@ -4,7 +4,7 @@
 //! Format specification:
 //! - All integers are little-endian
 //! - Strings are length-prefixed (u32 length + bytes)
-//! - Arrays are length-prefixed (u32 length + elements)
+//! - Slices are length-prefixed (u32 length + elements); fixed-size arrays are read directly
 
 const std = @import("std");
 const ecs = @import("ecs");
@@ -225,14 +225,30 @@ pub const BinaryReader = struct {
                     else
                         @as(T, try self.readU64());
                 } else if (int_info.bits <= 8) {
-                    // Small integers (enums etc) - read as u8
-                    return @intCast(try self.readU8());
+                    // Small integers (enums etc) - preserve signedness
+                    if (int_info.signedness == .signed) {
+                        return @intCast(try self.readI8());
+                    } else {
+                        return @intCast(try self.readU8());
+                    }
                 } else if (int_info.bits <= 16) {
-                    return @intCast(try self.readU16());
+                    if (int_info.signedness == .signed) {
+                        return @intCast(try self.readI16());
+                    } else {
+                        return @intCast(try self.readU16());
+                    }
                 } else if (int_info.bits <= 32) {
-                    return @intCast(try self.readU32());
+                    if (int_info.signedness == .signed) {
+                        return @intCast(try self.readI32());
+                    } else {
+                        return @intCast(try self.readU32());
+                    }
                 } else {
-                    return @intCast(try self.readU64());
+                    if (int_info.signedness == .signed) {
+                        return @intCast(try self.readI64());
+                    } else {
+                        return @intCast(try self.readU64());
+                    }
                 }
             },
             .float => |float_info| {

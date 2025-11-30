@@ -69,6 +69,11 @@ const ActionComponent = struct {
     current: Action,
 };
 
+const OptionalTarget = struct {
+    target_id: ?u32,
+    priority: ?i8,
+};
+
 // ============================================================================
 // Roundtrip Serialization Tests
 // ============================================================================
@@ -179,6 +184,59 @@ test "binary serialization roundtrip - arrays" {
     try testing.expectEqual(@as(u32, 1), inv.slots[0]);
     try testing.expectEqual(@as(u32, 8), inv.slots[7]);
     try testing.expectEqual(@as(u32, 1000), inv.gold);
+}
+
+test "binary serialization roundtrip - optional types" {
+    const allocator = testing.allocator;
+    const TestSerializer = BinarySerializer(&[_]type{OptionalTarget});
+
+    var registry1 = ecs.Registry.init(allocator);
+    defer registry1.deinit();
+
+    // Entity with all optionals set
+    const e1 = registry1.create();
+    registry1.add(e1, OptionalTarget{ .target_id = 42, .priority = -5 });
+
+    // Entity with all optionals null
+    const e2 = registry1.create();
+    registry1.add(e2, OptionalTarget{ .target_id = null, .priority = null });
+
+    // Entity with mixed optionals
+    const e3 = registry1.create();
+    registry1.add(e3, OptionalTarget{ .target_id = 100, .priority = null });
+
+    var ser = TestSerializer.init(allocator, .{});
+    defer ser.deinit();
+
+    const binary_data = try ser.serialize(&registry1);
+    defer allocator.free(binary_data);
+
+    var registry2 = ecs.Registry.init(allocator);
+    defer registry2.deinit();
+
+    try ser.deserialize(&registry2, binary_data);
+
+    var view = registry2.view(.{OptionalTarget}, .{});
+    var found_all_set = false;
+    var found_all_null = false;
+    var found_mixed = false;
+    var iter = view.entityIterator();
+    while (iter.next()) |entity| {
+        const target = registry2.get(OptionalTarget, entity);
+        if (target.target_id != null and target.priority != null) {
+            try testing.expectEqual(@as(u32, 42), target.target_id.?);
+            try testing.expectEqual(@as(i8, -5), target.priority.?);
+            found_all_set = true;
+        } else if (target.target_id == null and target.priority == null) {
+            found_all_null = true;
+        } else if (target.target_id != null and target.priority == null) {
+            try testing.expectEqual(@as(u32, 100), target.target_id.?);
+            found_mixed = true;
+        }
+    }
+    try testing.expect(found_all_set);
+    try testing.expect(found_all_null);
+    try testing.expect(found_mixed);
 }
 
 test "binary serialization roundtrip - enums" {
