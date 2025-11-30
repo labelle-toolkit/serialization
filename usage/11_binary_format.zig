@@ -156,16 +156,32 @@ pub fn main() !void {
     std.debug.print("4. Save and Load from File\n", .{});
     std.debug.print("--------------------------\n", .{});
 
+    // Get a cross-platform temp path
+    const tmp_dir = std.fs.cwd();
+    const bin_path = "game_save_example.bin";
+
     // Save to binary file
-    const bin_path = "/tmp/game_save.bin";
-    try bin_serializer.save(&registry, bin_path);
+    {
+        const file = try tmp_dir.createFile(bin_path, .{});
+        defer file.close();
+        try file.writeAll(binary_data);
+    }
     std.debug.print("Saved to {s}\n", .{bin_path});
 
     // Load from binary file
     var registry3 = ecs.Registry.init(allocator);
     defer registry3.deinit();
 
-    try bin_serializer.load(&registry3, bin_path);
+    {
+        const file = try tmp_dir.openFile(bin_path, .{});
+        defer file.close();
+        const file_data = try file.readToEndAlloc(allocator, 1024 * 1024);
+        defer allocator.free(file_data);
+        try bin_serializer.deserialize(&registry3, file_data);
+    }
+
+    // Clean up the temp file
+    tmp_dir.deleteFile(bin_path) catch {};
 
     var loaded_view = registry3.view(.{Position}, .{});
     var loaded_count: usize = 0;
