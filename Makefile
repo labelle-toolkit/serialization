@@ -34,6 +34,9 @@ usage-04:
 usage-05:
 	zig build run-usage-05-compression
 
+usage-06:
+	zig build run-usage-06-save-slots
+
 # Run the basic example
 example:
 	zig build run-example
@@ -66,6 +69,7 @@ help:
 	@echo "  usage-03   - Run validation example"
 	@echo "  usage-04   - Run migration example"
 	@echo "  usage-05   - Run compression example"
+	@echo "  usage-06   - Run save slots example"
 	@echo "  example    - Run basic example"
 	@echo "  docs       - Generate documentation"
 	@echo "  clean      - Remove build artifacts"
