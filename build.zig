@@ -168,6 +168,20 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(migration_tests).step);
 
+    // Tests - log tests
+    const log_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/log_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(log_tests).step);
+
     // Example: basic save/load
     const example_basic = b.addExecutable(.{
         .name = "example-basic",
@@ -197,6 +211,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-06-save-slots", .file = "usage/06_save_slots.zig" },
         .{ .name = "usage-07-custom-hooks", .file = "usage/07_custom_hooks.zig" },
         .{ .name = "usage-08-component-registry", .file = "usage/08_component_registry.zig" },
+        .{ .name = "usage-09-logging", .file = "usage/09_logging.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");

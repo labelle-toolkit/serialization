@@ -42,6 +42,8 @@ pub const hasCustomSerialization = hooks.hasCustomSerialization;
 pub const serializeValue = hooks.serializeValue;
 pub const deserializeValue = hooks.deserializeValue;
 pub const ComponentRegistry = @import("component_registry.zig").ComponentRegistry;
+pub const LogLevel = @import("log.zig").LogLevel;
+pub const Logger = @import("log.zig").Logger;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -68,4 +70,5 @@ test {
     _ = @import("save_slots.zig");
     _ = @import("hooks.zig");
     _ = @import("component_registry.zig");
+    _ = @import("log.zig");
 }
