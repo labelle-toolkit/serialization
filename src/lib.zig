@@ -20,6 +20,10 @@ pub const ValidationResult = @import("validation.zig").ValidationResult;
 pub const validateSave = @import("validation.zig").validateSave;
 pub const crc32 = @import("validation.zig").crc32;
 pub const addChecksum = @import("validation.zig").addChecksum;
+pub const MigrationContext = @import("migration.zig").MigrationContext;
+pub const MigrationRegistry = @import("migration.zig").MigrationRegistry;
+pub const MigrationResult = @import("migration.zig").MigrationResult;
+pub const MigrationFn = @import("migration.zig").MigrationFn;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -41,5 +45,6 @@ test {
     _ = @import("json_writer.zig");
     _ = @import("json_reader.zig");
     _ = @import("validation.zig");
+    _ = @import("migration.zig");
     _ = @import("tests/serializer_tests.zig");
 }

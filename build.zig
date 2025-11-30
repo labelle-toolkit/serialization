@@ -76,6 +76,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-01-quick-save", .file = "usage/01_quick_save.zig" },
         .{ .name = "usage-02-transient", .file = "usage/02_transient_components.zig" },
         .{ .name = "usage-03-validation", .file = "usage/03_validation.zig" },
+        .{ .name = "usage-04-migration", .file = "usage/04_migration.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");

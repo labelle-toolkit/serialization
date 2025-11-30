@@ -28,6 +28,9 @@ usage-02:
 usage-03:
 	zig build run-usage-03-validation
 
+usage-04:
+	zig build run-usage-04-migration
+
 # Run the basic example
 example:
 	zig build run-example
@@ -58,6 +61,7 @@ help:
 	@echo "  usage-01   - Run quick save example"
 	@echo "  usage-02   - Run transient components example"
 	@echo "  usage-03   - Run validation example"
+	@echo "  usage-04   - Run migration example"
 	@echo "  example    - Run basic example"
 	@echo "  docs       - Generate documentation"
 	@echo "  clean      - Remove build artifacts"
