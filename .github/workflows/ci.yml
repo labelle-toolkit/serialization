@@ -72,6 +72,35 @@ jobs:
       - name: Run example
         run: zig build run-example
 
+      - name: Run usage examples
+        id: usage
+        shell: bash
+        run: |
+          echo "::group::📚 Running usage examples"
+          set +e
+          zig build run-usage 2>&1 | tee usage_output.txt
+          USAGE_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          echo "::endgroup::"
+
+          # Create a summary in the GitHub Actions UI
+          echo "## 📚 Usage Examples (${{ matrix.os }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$USAGE_EXIT_CODE" -eq 0 ]; then
+            echo "✅ **All usage examples ran successfully!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Usage examples failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Usage Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat usage_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+          exit $USAGE_EXIT_CODE
+
   format-check:
     runs-on: ubuntu-latest
     steps:
@@ -85,8 +114,8 @@ jobs:
 
       - name: Check formatting
         run: |
-          zig fmt --check src/ examples/
+          zig fmt --check src/ examples/ usage/
           if [ $? -ne 0 ]; then
-            echo "::error::Code is not formatted. Run 'zig fmt src/ examples/' to fix."
+            echo "::error::Code is not formatted. Run 'zig fmt src/ examples/ usage/' to fix."
             exit 1
           fi
