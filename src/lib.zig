@@ -32,6 +32,9 @@ pub const decompress = @import("compression.zig").decompress;
 pub const compressWithHeader = @import("compression.zig").compressWithHeader;
 pub const decompressWithHeader = @import("compression.zig").decompressWithHeader;
 pub const hasCompressionHeader = @import("compression.zig").hasCompressionHeader;
+pub const SaveSlotManager = @import("save_slots.zig").SaveSlotManager;
+pub const SaveSlotConfig = @import("save_slots.zig").SaveSlotConfig;
+pub const SlotInfo = @import("save_slots.zig").SlotInfo;
 
 // Re-export commonly used types
 pub const Registry = ecs.Registry;
@@ -55,5 +58,6 @@ test {
     _ = @import("validation.zig");
     _ = @import("migration.zig");
     _ = @import("compression.zig");
+    _ = @import("save_slots.zig");
     _ = @import("tests/serializer_tests.zig");
 }
