@@ -1,5 +1,7 @@
 //! Configuration types for the serializer
 
+const log = @import("log.zig");
+
 /// Output format for serialization
 pub const Format = enum {
     /// Human-readable JSON format
@@ -33,4 +35,12 @@ pub const Config = struct {
 
     /// Enable string interning for memory efficiency
     string_interning: bool = false,
+
+    /// Log level for serialization operations
+    /// Set to .none to disable all logging
+    log_level: log.LogLevel = .none,
+
+    /// Custom log function (optional)
+    /// If provided, logs will be sent to this function instead of std.log
+    log_fn: ?log.LogFn = null,
 };

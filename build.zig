@@ -168,6 +168,34 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(migration_tests).step);
 
+    // Tests - log tests
+    const log_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/log_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(log_tests).step);
+
+    // Tests - debug tests
+    const debug_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/debug_tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(debug_tests).step);
+
     // Example: basic save/load
     const example_basic = b.addExecutable(.{
         .name = "example-basic",
@@ -197,6 +225,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "usage-06-save-slots", .file = "usage/06_save_slots.zig" },
         .{ .name = "usage-07-custom-hooks", .file = "usage/07_custom_hooks.zig" },
         .{ .name = "usage-08-component-registry", .file = "usage/08_component_registry.zig" },
+        .{ .name = "usage-09-logging", .file = "usage/09_logging.zig" },
+        .{ .name = "usage-10-debug-tools", .file = "usage/10_debug_tools.zig" },
     };
 
     const usage_step = b.step("run-usage", "Run all usage examples");
@@ -223,6 +253,30 @@ pub fn build(b: *std.Build) void {
         const run_step = b.step("run-" ++ example.name, "Run " ++ example.name);
         run_step.dependOn(&run_exe.step);
     }
+
+    // CLI tool: zig-serialize
+    const cli_tool = b.addExecutable(.{
+        .name = "zig-serialize",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/zig-serialize.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "serialization", .module = lib_mod },
+                .{ .name = "ecs", .module = ecs },
+            },
+        }),
+    });
+    b.installArtifact(cli_tool);
+
+    const run_cli = b.addRunArtifact(cli_tool);
+    run_cli.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cli.addArgs(args);
+    }
+
+    const cli_step = b.step("cli", "Run the zig-serialize CLI tool");
+    cli_step.dependOn(&run_cli.step);
 
     // Docs
     const docs = b.addLibrary(.{
