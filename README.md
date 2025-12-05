@@ -1,4 +1,4 @@
-# serialization
+# labelle-serialization
 
 A Zig library for serializing and deserializing ECS (Entity Component System) game state. Designed to work with [zig-ecs](https://github.com/Avokadoen/zig-ecs) and the [labelle](https://github.com/labelle-toolkit/labelle) graphics library.
 
@@ -14,12 +14,12 @@ A Zig library for serializing and deserializing ECS (Entity Component System) ga
 
 ## Installation
 
-Add `serialization` to your `build.zig.zon`:
+Add `labelle-serialization` to your `build.zig.zon`:
 
 ```zig
 .dependencies = .{
-    .serialization = .{
-        .url = "https://github.com/labelle-toolkit/serialization/archive/refs/heads/main.tar.gz",
+    .@"labelle-serialization" = .{
+        .url = "https://github.com/labelle-toolkit/labelle-serialization/archive/refs/heads/main.tar.gz",
         .hash = "...",
     },
 },
@@ -28,11 +28,11 @@ Add `serialization` to your `build.zig.zon`:
 Then in your `build.zig`:
 
 ```zig
-const serialization = b.dependency("serialization", .{
+const serialization = b.dependency("labelle-serialization", .{
     .target = target,
     .optimize = optimize,
 });
-exe.root_module.addImport("serialization", serialization.module("serialization"));
+exe.root_module.addImport("labelle-serialization", serialization.module("labelle-serialization"));
 ```
 
 ## Quick Start
@@ -40,7 +40,7 @@ exe.root_module.addImport("serialization", serialization.module("serialization")
 ```zig
 const std = @import("std");
 const ecs = @import("zig-ecs");
-const serialization = @import("serialization");
+const serialization = @import("labelle-serialization");
 
 // Define your components
 const Position = struct { x: f32, y: f32 };

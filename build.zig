@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) void {
     const ecs = ecs_dep.module("zig-ecs");
 
     // Main library module
-    const lib_mod = b.addModule("serialization", .{
+    const lib_mod = b.addModule("labelle-serialization", .{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
         .optimize = optimize,
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     // Static library artifact
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "serialization",
+        .name = "labelle-serialization",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/lib.zig"),
             .target = target,
@@ -338,7 +338,7 @@ pub fn build(b: *std.Build) void {
     // Docs
     const docs = b.addLibrary(.{
         .linkage = .static,
-        .name = "serialization-docs",
+        .name = "labelle-serialization-docs",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/lib.zig"),
             .target = target,

@@ -1,6 +1,6 @@
 .{
-    .name = .serialization,
-    .version = "0.1.0",
+    .name = .@"labelle-serialization",
+    .version = "0.2.0",
     .fingerprint = 0x4aa2c74f4a22715,
     .minimum_zig_version = "0.14.0",
 
